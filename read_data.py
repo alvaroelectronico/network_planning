@@ -9,8 +9,6 @@ def read_data(folder_path):
     df_demand = pd.read_csv(os.path.join(folder_path, "traffic_demand.csv"))
     df_coverage = pd.read_csv(os.path.join(folder_path, "coverage.csv"))
 
-    print("dtaframes read")
-
     existing_sites = list(df_existing_sites.site_id.unique())
     potential_sites = list(df_potential_sites.site_id.unique())
     sites = existing_sites + potential_sites
@@ -31,27 +29,19 @@ def read_data(folder_path):
     print("coverage read")
 
     existing_node_in_site = list(set([(i[0], i[1]) for i in initial_capacity.keys() if initial_capacity[i] > 0]))
-    #
+
     potential_node_in_site = [(s, n) for s in sites for n in nodes
                                if not (s, n) in existing_node_in_site]
-    #
+    
     existing_cell_in_site_node = [(i[0], i[1], i[2])
                                   for i in initial_capacity.keys() if initial_capacity[i] > 0]
 
     potential_cell_in_site_node = [i for i in initial_capacity.keys() if not i in existing_cell_in_site_node]
 
-    # p01SiteExists = {s: s in existing_sites for s in sites}
-    # p01NodeExists = {(s, n): (s,n) in existing_node_in_site for s in sites for n in nodes}
-    # p01CellExists = {(s, n, c): ((s, n, c) in initial_capacity.keys() and initial_capacity[s, n, c] > 0)
-    #                  for s in sites for n in nodes for c in cells}
-
     df_coverage['site_cell'] = list(zip(df_coverage['site_id'], df_coverage['cell']))
     df_coverage3 = df_coverage.groupby(by=['lot_id', 'node'])['site_cell'].apply(lambda x: x.values.tolist())
     site_cells_lighting_lot_node = df_coverage3.to_dict()
     print("coverage read")
-
-    # return lots, sites, nodes, cells, existing_sites, potential_sites, initial_capacity, max_capacity, demand, \
-    #        coverage, existing_node_in_site, p01SiteExists, p01NodeExists, p01CellExists, site_cells_lighting_lot_node
 
     return lots, sites, nodes, cells, existing_sites, potential_sites, initial_capacity, max_capacity, demand, \
            coverage, existing_node_in_site, potential_node_in_site, existing_cell_in_site_node, potential_cell_in_site_node, \
