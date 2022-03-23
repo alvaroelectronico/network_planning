@@ -1,14 +1,15 @@
 from torchvision.transforms.functional import vflip
 
-from network_dimensioning.hard_coded_data import *
+# from network_planning.hard_coded_data import *
+from hard_coded_data import *
 import gurobipy as gp
 import os
 import time
 from gurobipy import GRB
-from network_dimensioning.read_data import read_data
+from read_data import read_data
 
 # To debug this py file (to be commented or deleted):
-DATA_PATH = "..\..\datos_entrada\csv\casos_daniele"
+DATA_PATH = "..\..\..\datos_entrada\csv\casos_daniele"
 case_path = "10km2_0"
 folder_path = os.path.join(DATA_PATH, case_path)
 print("Reading data")
@@ -20,6 +21,7 @@ lots, sites, nodes, cells, existing_sites, potential_sites, initial_capacity, ma
 
 print("Data read. Time: {}".format(time.time() - start_time))
 
+start_time = time.time()
 model = gp.Model("network_dimensioning")
 
 
@@ -99,6 +101,7 @@ model.addConstrs((gp.quicksum(vTrafficOfCell[s, n, c, l] for s in sites for c in
                   nodes),
                  "DemandFullfilment")
 
+print("Model built. Time: {}".format(time.time() - start_time))
 model.write("network_dimensioning.lp")
 
 model.Params.TIME_LIMIT = 100
@@ -108,33 +111,33 @@ model.optimize()
 
 print("Total cost: {}".format(model.ObjVal))
 
-print()
-print("New sites")
-for site in [s for s in potential_sites if v01NewSite[s].X == 1]:
-    print("{}".format(site))
-
-print()
-print("New nodes")
-for (site, node) in [i for i in potential_node_in_site if v01NewNode[i].X == 1]:
-    print("{}-  {}".format(site, node))
-
-print()
-print("New cells")
-for (site, node, cell) in [i for i in potential_cell_in_site_node if v01NewCell[i].X == 1]:
-    print("{}-{}-{}".format(site, node, cell))
-
-print()
-print("Upgrade cells")
-for (site, node, cell) in [i for i in existing_cell_in_site_node if v01UpgradeCell[i].X == 1]:
-    print("{}-{}-{}".format(site, node, cell))
-
-print("Total cost: {}".format(model.ObjVal))
-
-print()
-print("Final capacity")
-for (site, node, cell) in [(s, n, c) for s in sites for n in nodes for c in cells if vFinalCapacity[s, n, c].X > 0]:
-    print("{} - {} - {}: {}".format(site, node, cell, vFinalCapacity[site, node, cell].X))
-
-print("Traffic")
-for i in [j for j in coverage if vTrafficOfCell[j].X > 0]:
-    print("{} - {} - {} - {}: {}".format(i[0], i[1], i[2], i[3], vTrafficOfCell[i].X))
+# print()
+# print("New sites")
+# for site in [s for s in potential_sites if v01NewSite[s].X == 1]:
+#     print("{}".format(site))
+#
+# print()
+# print("New nodes")
+# for (site, node) in [i for i in potential_node_in_site if v01NewNode[i].X == 1]:
+#     print("{}-  {}".format(site, node))
+#
+# print()
+# print("New cells")
+# for (site, node, cell) in [i for i in potential_cell_in_site_node if v01NewCell[i].X == 1]:
+#     print("{}-{}-{}".format(site, node, cell))
+#
+# print()
+# print("Upgrade cells")
+# for (site, node, cell) in [i for i in existing_cell_in_site_node if v01UpgradeCell[i].X == 1]:
+#     print("{}-{}-{}".format(site, node, cell))
+#
+# print("Total cost: {}".format(model.ObjVal))
+#
+# print()
+# print("Final capacity")
+# for (site, node, cell) in [(s, n, c) for s in sites for n in nodes for c in cells if vFinalCapacity[s, n, c].X > 0]:
+#     print("{} - {} - {}: {}".format(site, node, cell, vFinalCapacity[site, node, cell].X))
+#
+# print("Traffic")
+# for i in [j for j in coverage if vTrafficOfCell[j].X > 0]:
+#     print("{} - {} - {} - {}: {}".format(i[0], i[1], i[2], i[3], vTrafficOfCell[i].X))

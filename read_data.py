@@ -8,6 +8,7 @@ def read_data(folder_path):
     df_potential_sites = pd.read_csv(os.path.join(folder_path, "potential_sites.csv"))
     df_demand = pd.read_csv(os.path.join(folder_path, "traffic_demand.csv"))
     df_coverage = pd.read_csv(os.path.join(folder_path, "coverage.csv"))
+    print("csv files read")
 
     existing_sites = list(df_existing_sites.site_id.unique())
     potential_sites = list(df_potential_sites.site_id.unique())
@@ -41,7 +42,7 @@ def read_data(folder_path):
     df_coverage['site_cell'] = list(zip(df_coverage['site_id'], df_coverage['cell']))
     df_coverage3 = df_coverage.groupby(by=['lot_id', 'node'])['site_cell'].apply(lambda x: x.values.tolist())
     site_cells_lighting_lot_node = df_coverage3.to_dict()
-    print("coverage read")
+    print("site_cells_lighting_lot_node read")
 
     return lots, sites, nodes, cells, existing_sites, potential_sites, initial_capacity, max_capacity, demand, \
            coverage, existing_node_in_site, potential_node_in_site, existing_cell_in_site_node, potential_cell_in_site_node, \
