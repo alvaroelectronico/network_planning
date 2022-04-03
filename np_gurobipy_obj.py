@@ -1,13 +1,10 @@
-from torchvision.transforms.functional import vflip
-
-# from network_planning.hard_coded_data import *
+import pandas as pd
 from hard_coded_data import *
 import gurobipy as gp
 import os
-import time
 from gurobipy import GRB
 from read_data import read_data
-
+import time
 
 class NP_problem:
     def __init__(self, name, input_folder):
@@ -28,9 +25,9 @@ class NP_problem:
         self.existing_cell_in_site_node = list()
         self.potential_cell_in_site_node = list()
         self.site_cells_lighting_lot_node = list()
+        self.lots_covered_by_site_node_cell = list()
         self.model = gp.Model("network_dimensioning")
         self.solver_params = dict()
-
         self.read_data()
 
     def read_data(self):
@@ -39,14 +36,16 @@ class NP_problem:
 
         self.lots, self.sites, self.nodes, self.cells, self.existing_sites, self.potential_sites, self.initial_capacity,\
         self.max_capacity, self.demand, self.coverage, self.existing_node_in_site, self.potential_node_in_site, \
-        self.existing_cell_in_site_node, self.potential_cell_in_site_node, self.site_cells_lighting_lot_node \
-            = read_data(folder_path)
+        self.existing_cell_in_site_node, self.potential_cell_in_site_node, self.site_cells_lighting_lot_node,\
+        self.lots_covered_by_site_node_cell\
+            = read_data(self.input_folder)
 
         print("Data read. Time: {}".format(time.time() - start_time))
 
     def build_model(self):
+        start_time_g = time.time()
         start_time = time.time()
-        model = gp.Model("network_dimensioning")
+        self.model = gp.Model("network_dimensioning")
         print("Building model")
         v01NewSite = self.model.addVars(self.potential_sites,
                                    vtype=GRB.BINARY,
@@ -78,64 +77,78 @@ class NP_problem:
                                        obj=0,
                                        name="vTrafficOfCell")
 
-        print("Variables defined")
+        print("Variables defined: {}".format(time.time() - start_time))
+
+        start_time = time.time()
         self.model.ModelSense = GRB.MINIMIZE
 
         self.model.addConstrs((vFinalCapacity[i] >= self.initial_capacity[i] \
                           for i in self.existing_cell_in_site_node),
                          "MinCellCapacity")
-        print("MinCellCapacity constraint built")
+        print("MinCellCapacity constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
         self.model.addConstrs((vFinalCapacity[i] <= self.initial_capacity[i] * v01UpgradeCell[i] + \
                           self.max_capacity[i] * (1 - v01UpgradeCell[i]) \
                           for i in self.existing_cell_in_site_node),
                          "MaxCellCapacityExistingCells")
-        print("MaxCellCapacityExistingCells constraint built")
+        print("MaxCellCapacityExistingCells constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
         self.model.addConstrs((vFinalCapacity[i] <= self.max_capacity[i] * v01NewCell[i] \
                           for i in self.potential_cell_in_site_node),
                          "MaxCellCapacityNewCells")
-        print("MaxCellCapacityNewCells constraint built")
+        print("MaxCellCapacityNewCells constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
         self.model.addConstrs((v01NewCell[s, n, c] <= v01NewNode[s, n] \
                           for (s, n, c) in self.potential_cell_in_site_node if (s, n) in self.potential_node_in_site),
                          "NewCellIfNodeExists")
-        print("NewCellIfNodeExists constraint built")
+        print("NewCellIfNodeExists constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
         self.model.addConstrs((v01NewNode[s, n] <= v01NewSite[s] \
                           for (s, n) in self.potential_node_in_site if s in self.potential_sites),
                          "NewNodeIfSiteExists")
-        print("NewNodeIfSiteExists constraint built")
+        print("NewNodeIfSiteExists constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
         self.model.addConstrs((gp.quicksum(vFinalCapacity[s, n, c] for s in self.sites for n in self.nodes for c in self.cells)
                           >=
                           gp.quicksum(self.demand[l, n] for l in self.lots) \
                           for n in self.nodes),
                          "EnoughGlobalCapacity")
-        print("NewNodeIfSiteExists constraint built")
+        print("EnoughGlobalCapacity constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
         self.model.addConstrs((gp.quicksum(vFinalCapacity[s, n, c] for (s, c) in self.site_cells_lighting_lot_node[l, n])
                           >=
                           self.demand[l, n] for l in self.lots for n in self.nodes),
                          "EnoughCapacityPerLot")
-        print("NewNodeIfSiteExists constraint built")
+        print("EnoughCapacityPerLot constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
         self.model.addConstrs(
-            (gp.quicksum(vTrafficOfCell[s, n, c, l] for l in self.lots if (s, c) in self.site_cells_lighting_lot_node[l, n])
+            (gp.quicksum(vTrafficOfCell[s, n, c, l] for l in self.lots_covered_by_site_node_cell[s, n, c])
              <= vFinalCapacity[s, n, c]
              for s in self.sites for n in self.nodes for c in self.cells),
             "MaxTrafficOfCell")
-        print("NewNodeIfSiteExists constraint built")
 
-        self.model.addConstrs((gp.quicksum(vTrafficOfCell[s, n, c, l] for s in self.sites for c in self.cells if \
-                                      (s, c) in self.site_cells_lighting_lot_node[l, n]) >= self.demand[l, n] for l in self.lots for n
-                          in
-                          self.nodes),
-                         "DemandFullfilment")
-        print("NewNodeIfSiteExists constraint built")
+        print("MaxTrafficOfCell constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
 
-        print("Model built. Time: {}".format(time.time() - start_time))
-        self.model.write("network_dimensioning.lp")
+        self.model.addConstrs((gp.quicksum(vTrafficOfCell[i[0], n, i[1], l] for \
+                                           i in self.site_cells_lighting_lot_node[l, n]) >= self.demand[l, n] for l
+                               in self.lots for n
+                               in
+                               self.nodes),
+                              "DemandFullfilment")
+
+        print("DemandFullfilment constraint built: {}".format(time.time() - start_time))
+        start_time = time.time()
+
+        print("Model built. Time: {}".format(time.time() - start_time_g))
+        # self.model.write("network_planning.lp")
 
     def set_solver_params(self):
         for param in self.solver_params.keys():
@@ -145,17 +158,34 @@ class NP_problem:
         self.set_solver_params()
         self.model.optimize()
 
+    def get_df_output_data(self):
+        self.output_data = dict(
+            case=self.name,
+            obj_func=self.model.ObjVal,
+            gap=self.model.MIPGap,
+            run_time=self.model.Runtime
+        )
 
-DATA_PATH = "..\..\..\datos_entrada\csv\casos_daniele"
-case_path = "1000km2_0"
-folder_path = os.path.join(DATA_PATH, case_path)
-instance = NP_problem(case_path, folder_path)
-instance.build_model()
-instance.solver_params = dict(TIME_LIMIT=100, MIPGap=0.01)
-instance.solve_model()
+DATA_PATH = "..\..\..\datos_entrada\csv\casos_prueba"
+cases = [c for c in os.listdir(DATA_PATH)]
+cases_paths = {c: os.path.join(DATA_PATH, c) for c in os.listdir(DATA_PATH) if os.path.isdir(os.path.join(DATA_PATH, c))}
+
+# case_path = "1000km2_0"
+# folder_path = os.path.join(DATA_PATH, case_path)
+
+df_results = pd.DataFrame(columns=["case", "obj_func", "gap", "run_time"])
 
 
-print("Total cost: {}".format(instance.model.ObjVal))
+for case in cases_paths.keys():
+    instance = NP_problem(case, cases_paths[case])
+    instance.build_model()
+    instance.solver_params = dict(TIME_LIMIT=6000, MIPGap=0.01)
+    instance.solve_model()
+    instance.get_df_output_data()
+    df_results = df_results.append(instance.output_data, ignore_index=True)
+
+
+# print("Total cost: {}".format(instance.model.ObjVal))
 
 # print()
 # print("New sites")
